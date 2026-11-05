@@ -1,0 +1,52 @@
+name: Publicar TBX Edition 0.11 APK oficial
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-tbx-v011.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_ARCHIVE_URL: "https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-70d0-820e-920c-7eb4111eb415/raw?se=2026-11-05T00%3A09%3A47Z&sp=r&sv=2026-02-06&sr=b&scid=89edd252-c9d4-5841-ad91-b8321070edaf&skoid=68f37fa7-4e08-478b-93f3-c72d563a0ab3&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-04T22%3A47%3A21Z&ske=2026-11-05T22%3A47%3A21Z&sks=b&skv=2026-02-06&sig=4Qnwg4aIGKOa4CaN0aEHFEDqY5aX0ZTV3AoNYXv8v58%3D"
+      EXPECTED_SHA256: "242ad1301a91715de2679d44c16604c8835de99f896abea33b119ef481861051"
+    steps:
+      - name: Baixar artefato do build validado
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 180 \
+            --output /tmp/tbx-0.11-ci.zip "$VERIFIED_ARCHIVE_URL"
+          unzip -t /tmp/tbx-0.11-ci.zip >/dev/null
+          unzip -p /tmp/tbx-0.11-ci.zip "Minecraft-TBX-Edition-0.11-Vivid-Sun-Water-Android-arm64.apk" > TBX-Edition-v0.11-Android-arm64.apk
+          echo "$EXPECTED_SHA256  TBX-Edition-v0.11-Android-arm64.apk" | sha256sum --check
+          test "$(stat -c %s TBX-Edition-v0.11-Android-arm64.apk)" -gt 10000000
+      - name: Publicar Release pública para download direto, sem login
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/tbx-release-notes.md <<'EOF'
+          TBX Edition 0.11 — APK experimental para Android ARM64.
+
+          Arquivo fornecido pelo desenvolvedor e comparado byte a byte (SHA-256) com a compilação concluída com sucesso no repositório privado.
+
+          SHA-256: `242ad1301a91715de2679d44c16604c8835de99f896abea33b119ef481861051`
+
+          Este é um projeto independente não oficial, sem afiliação à Mojang/Microsoft. Faça backup dos seus dados antes de substituir uma instalação existente.
+          EOF
+          if gh release view v0.11 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v0.11 TBX-Edition-v0.11-Android-arm64.apk --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create v0.11 TBX-Edition-v0.11-Android-arm64.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "TBX Edition 0.11 — Android ARM64" \
+              --notes-file /tmp/tbx-release-notes.md \
+              --prerelease --target main
+          fi
