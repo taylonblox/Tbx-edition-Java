@@ -1,0 +1,99 @@
+name: TBX Edition - Verificar Android sem gerar APK
+run-name: TBX Preflight · verificar Rust Android · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tbx-preflight.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tbx-preflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/preflight-target
+      HORIZON_TELEMETRY_URL: 'off'
+    steps:
+      - name: Baixar workflow público
+        uses: actions/checkout@v4
+
+      - name: Obter fonte TBX revisada e validar SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --retry 3 --max-time 180 \
+            https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
+          echo '1b7746d7d4fc00f665ddfb3fa5f975ec8205ca651b7675c0af1912fe5fdf102a  tbx-source.tar.gz' | sha256sum --check
+          tar -xzf tbx-source.tar.gz
+          rm tbx-source.tar.gz
+          test -f Cargo.lock
+          test -f research-lock.json
+          test -f docs/modpacks/atm10-mods.csv
+          test -f crates/horizon-client/src/android/catalog.rs
+          test -f third_party/naga/src/front/glsl/token.rs
+          test -f packaging/android/build.gradle
+
+      - name: Conferir arvore e testes Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_public_tree.py
+          python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
+          python3 -m unittest discover -s tools -p 'test_tbx_super_converter.py'
+
+      - name: Preparar JDK 25 para recursos do Minecraft
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Preparar JDK 17 para Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Rust ARM64 e Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-linux-android
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
+          fi
+          test -x "$sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" \
+            'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Compilar tipos Rust do conversor sem gerar APK
+        run: cargo check --locked -p horizon-port-pack
+
+      - name: Preparar recursos oficiais e arquivos gerados
+        run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
+
+      - name: Conferir codigo Android ARM64 em modo release sem gerar APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --locked -p horizon-android \
+            --target aarch64-linux-android --profile release
+
+      - name: Finalizar validacao sem artefato
+        run: |
+          echo "### ✅ Código TBX verificado sem gerar APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Rust do conversor e código Android ARM64 passaram pela verificação de tipos." >> "$GITHUB_STEP_SUMMARY"
+          echo "ATENÇÃO: isso não garante linkagem, assinatura ou instalação do APK." >> "$GITHUB_STEP_SUMMARY"
