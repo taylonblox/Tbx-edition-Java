@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           curl --fail --show-error --location --retry 3 --max-time 180 \
             https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
-          echo '818302604ab2f25aff2714ad1c7c325d96b6a80cb01ad6d3d236f6bbd08d5cd2  tbx-source.tar.gz' | sha256sum --check
+          echo '1b7746d7d4fc00f665ddfb3fa5f975ec8205ca651b7675c0af1912fe5fdf102a  tbx-source.tar.gz' | sha256sum --check
           tar -xzf tbx-source.tar.gz
           rm tbx-source.tar.gz
           test -f Cargo.lock
@@ -104,6 +104,14 @@ jobs:
 
       - name: Preparar recursos originais e tabelas do motor
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
+
+      - name: Verificacao automatica do codigo Android ARM64 antes do APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/android_build.py --abi arm64-v8a --public --check \
+            --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" \
+            --ndk-version 28.2.13676358 --build-tools-version 35.0.0
 
       - name: Compilar APK TBX Edition ARM64
         shell: bash
