@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           curl --fail --show-error --location --retry 3 --max-time 180 \
             https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
-          echo '51463ad6656d7eb6f8c0a5ec3051d8505a9e6fde94f90f9f51d3629cd2fd02d9  tbx-source.tar.gz' | sha256sum --check
+          echo '5cb0fae8e7e92f14ac8f4272498ac841a2a7ac4b4d786fb835675c329591aba9  tbx-source.tar.gz' | sha256sum --check
           tar -xzf tbx-source.tar.gz
           rm tbx-source.tar.gz
           test -f Cargo.lock
@@ -98,6 +98,9 @@ jobs:
         run: |
           python3 tools/check_public_tree.py
           python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
+
+      - name: Conferir conversor de mods Rust antes de gerar APK
+        run: cargo check --locked -p horizon-port-pack
 
       - name: Preparar recursos originais e tabelas do motor
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
