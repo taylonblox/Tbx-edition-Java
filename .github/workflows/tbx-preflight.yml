@@ -85,15 +85,16 @@ jobs:
       - name: Preparar recursos oficiais e arquivos gerados
         run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
 
-      - name: Conferir codigo Android ARM64 em modo release sem gerar APK
+      - name: Verificar motor Android ARM64 com configuracao NDK oficial sem gerar APK
         shell: bash
         run: |
           set -euo pipefail
-          cargo check --locked -p horizon-android \
-            --target aarch64-linux-android --profile release
+          python3 tools/android_build.py --abi arm64-v8a --public --check \
+            --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" \
+            --ndk-version 28.2.13676358 --build-tools-version 35.0.0
 
       - name: Finalizar validacao sem artefato
         run: |
           echo "### ✅ Código TBX verificado sem gerar APK" >> "$GITHUB_STEP_SUMMARY"
-          echo "Rust do conversor e código Android ARM64 passaram pela verificação de tipos." >> "$GITHUB_STEP_SUMMARY"
+          echo "Rust do conversor e motor Android ARM64 passaram pela verificação de tipos." >> "$GITHUB_STEP_SUMMARY"
           echo "ATENÇÃO: isso não garante linkagem, assinatura ou instalação do APK." >> "$GITHUB_STEP_SUMMARY"
