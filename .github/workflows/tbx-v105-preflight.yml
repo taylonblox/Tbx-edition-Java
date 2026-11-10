@@ -1,0 +1,105 @@
+name: TBX V1.0.5 - Verificar recuperação sem APK
+run-name: TBX V1.0.5 · teste de código Android · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tbx-v105-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/preflight-target
+      HORIZON_TELEMETRY_URL: 'off'
+    steps:
+      - name: Baixar workflow publico
+        uses: actions/checkout@v4
+
+      - name: Obter fonte da linha de recuperação TBX e verificar SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --show-error --retry 3 --max-time 180 \
+            https://tbx-v105-recovery-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
+          echo '3c3b299d032885a37f145d8d5a133b5ac26594f6f897b34d4232f4f5877f03e6  tbx-source.tar.gz' | sha256sum --check
+          tar -xzf tbx-source.tar.gz
+          rm tbx-source.tar.gz
+          test -f Cargo.lock
+          test -f tools/android_build.py
+          test -f crates/horizon-client/src/android/recommended_mods.rs
+          test -f crates/horizon-client-render/src/packs.rs
+          test -f docs/modpacks/atm10-mods.csv
+          test -f third_party/naga/src/front/glsl/token.rs
+
+      - name: Validar integridade e fluxo de recomendados TBX
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/android_prepare.py tools/android_build.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('crates/horizon-client/src/android/recommended_mods.rs').read_text()
+          screen=Path('crates/horizon-client/src/android/launcher_pages.rs').read_text()
+          android=Path('packaging/android/build.gradle').read_text()
+          touch=Path('crates/horizon-client-render/src/touch/layout.rs').read_text()
+          assert all(s in p for s in ['pub fn open','pub fn download','pub fn poll','Kind::Mod','browser::installed::install'])
+          assert all(s in screen for s in ['"Baixar todos"','"Continuar"','"TBX Mods recomendados"'])
+          assert "dev.tbx.edition018preview" in android
+          assert "10005" in android
+          assert 'cfg!(target_os = "android") && c == Control::Settings' in touch
+          print('Integracao inicial verificada; aguardando Rust cargo check.')
+          PY
+
+      - name: Preparar JDK 25 para recursos Minecraft
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Preparar JDK 17 Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Rust ARM64 e Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-linux-android
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
+          fi
+          test -x "$sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" \
+            'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+
+      - name: Verificar conversor e motor Rust
+        run: cargo check --locked -p horizon-port-pack
+
+      - name: Preparar arquivos originais da versão Minecraft
+        run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
+
+      - name: Verificar launcher Android ARM64 sem compilar APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/android_build.py --abi arm64-v8a --public --check \
+            --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" \
+            --ndk-version 28.2.13676358 --build-tools-version 35.0.0
+
+      - name: Relatório da checagem
+        run: |
+          echo '### ✅ Código TBX V1.0.5 passou pelo preflight' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Isto não gera APK nem verifica assinatura e instalação sobre V1.0.4.' >> "$GITHUB_STEP_SUMMARY"
