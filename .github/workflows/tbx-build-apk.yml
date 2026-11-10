@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           curl --fail --show-error --location --retry 3 --max-time 180 \
             https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
-          echo '5cb0fae8e7e92f14ac8f4272498ac841a2a7ac4b4d786fb835675c329591aba9  tbx-source.tar.gz' | sha256sum --check
+          echo '818302604ab2f25aff2714ad1c7c325d96b6a80cb01ad6d3d236f6bbd08d5cd2  tbx-source.tar.gz' | sha256sum --check
           tar -xzf tbx-source.tar.gz
           rm tbx-source.tar.gz
           test -f Cargo.lock
