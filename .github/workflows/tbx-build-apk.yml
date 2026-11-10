@@ -1,5 +1,5 @@
 name: TBX Edition - Compilar APK Android (Prévia Conversor)
-run-name: TBX Prévia Conversor · ARM64 · ${{ github.sha }}
+run-name: TBX Edition V1.0.5 · ARM64 · ${{ github.sha }}
 
 on:
   workflow_dispatch:
@@ -33,14 +33,16 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --show-error --location --retry 3 --max-time 180 \
-            https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
-          echo '1b7746d7d4fc00f665ddfb3fa5f975ec8205ca651b7675c0af1912fe5fdf102a  tbx-source.tar.gz' | sha256sum --check
+            https://tbx-v105-recovery-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
+          echo '6009440d4d132d32149ca4608c765fad8c1ac31f996b9a9da3b67028c40a4818  tbx-source.tar.gz' | sha256sum --check
           tar -xzf tbx-source.tar.gz
           rm tbx-source.tar.gz
           test -f Cargo.lock
           test -f tools/android_build.py
           test -f tools/tbx_super_converter.py
-          echo 'Fonte autentica recebida. Este APK ainda é uma previa de desenvolvimento.'
+          test -f crates/horizon-client/src/android/recommended_mods.rs
+          test -f crates/horizon-client/src/android/launcher_pages.rs
+          echo 'Fonte V1.0.5 verificada com SHA-256. APK experimental de desenvolvimento.'
 
       # Optional: supply a stable key as a secret to allow install-over updates.
       # Without the secret, tools/android_build.py safely generates a local
@@ -119,26 +121,28 @@ jobs:
           python3 tools/android_build.py --abi arm64-v8a --public --profile release \
             --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" --gradle "$(command -v gradle)" \
             --ndk-version 28.2.13676358 --build-tools-version 35.0.0 \
-            --dev-build "${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:12}" \
-            --dev-version-code "$((1000 + GITHUB_RUN_NUMBER))"
+            --dev-app-id dev.tbx.edition018preview \
+            --dev-build "v1.0.5.${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:12}" \
+            --dev-version-code "10005"
 
       - name: Preparar APK para download
         shell: bash
         run: |
           mkdir -p dist
-          cp .local/android/apk/arm64-v8a/horizon-android-public.apk dist/Minecraft-TBX-Edition-Conversor-Previa-arm64.apk
+          cp .local/android/apk/arm64-v8a/horizon-android-public.apk dist/Minecraft-TBX-Edition-V1.0.5-Previa-Android-arm64.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
           cp LICENSE dist/LICENSE.txt
           cp THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
-          echo '### Minecraft TBX Edition - Previa Conversor (Android ARM64)' >> "$GITHUB_STEP_SUMMARY"
+          echo '### Minecraft TBX Edition V1.0.5 - Prévia Android ARM64' >> "$GITHUB_STEP_SUMMARY"
           echo 'Baixe o artefato abaixo e extraia o APK.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Pacote Android: `dev.tbx.edition077` (base antiga Horizon 0.7.7, NAO equivalente ao TBX 1.0.4).' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Pacote Android: `dev.tbx.edition018preview` (fonte de recuperação da V1.0.5).' 
+          echo 'Não instalar sobre V1.0.4 até verificar se a assinatura coincide e se os dados são preservados.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Sem uma chave de assinatura persistente, uma proxima compilacao pode exigir desinstalar a anterior.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Disponibilizar APK para baixar
         uses: actions/upload-artifact@v4
         with:
-          name: Minecraft-TBX-Edition-Conversor-Previa-Android
+          name: Minecraft-TBX-Edition-V1.0.5-Previa-Android
           path: dist/
           if-no-files-found: error
           retention-days: 14
