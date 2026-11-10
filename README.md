@@ -1,17 +1,20 @@
-# TBX Edition — Downloads públicos do APK
+# TBX Edition — compilação pública de testes
 
-Este repositório **público** é utilizado exclusivamente para distribuir os instaladores Android (.apk) do projeto experimental **TBX Edition**.
+Este repositório público foi autorizado pelo criador do projeto TBX Edition para **compilar APKs de teste gratuitamente pelo GitHub Actions**. O projeto de desenvolvimento e os seus segredos permanecem em outro repositório privado.
 
-- **Site oficial:** https://tbx-edition-site-sites-tbx.vercel.app/
-- **Histórico de versões públicas:** https://github.com/taylonblox/Tbx-edition-Java/releases
-- **Código-fonte de desenvolvimento:** mantido separadamente em um repositório privado.
+**Créditos e autoria:** TBX Studio / @TheTaylonX (identidade e alterações próprias). Base técnica: Horizon Android / Horizon, por Ludovic Marie e outros colaboradores, sob licença MIT. Todos os avisos de copyright, licenças e dependências do código-fonte precisam ser respeitados. A licença de software livre permite reutilizar e modificar o código e exige a preservação dos avisos de copyright; ela não transforma um terceiro no autor original. O nome, as marcas e os elementos originais TBX Studio não devem ser falsamente reivindicados por terceiros.
 
-## Como baixar
+## Próximo APK
 
-Quando uma versão estiver publicada em **Releases**, abra a versão desejada e baixe o arquivo `TBX-Edition-vX.Y-Android-arm64.apk` em **Assets**. Não é necessário login no GitHub para baixar assets de releases públicas.
+1. Abra **Actions**.
+2. Selecione **TBX Edition - Compilar APK Android (Prévia Conversor)**.
+3. Entre na execução e acompanhe o progresso; pode fechar a aba.
+4. Quando a execução terminar com sucesso, baixe o arquivo na seção **Artifacts**.
 
-## Sobre os arquivos
+O workflow também é iniciado automaticamente após a publicação desta configuração.
 
-Os APKs são compilações experimentais de Minecraft Java no Android e podem apresentar falhas, incompatibilidade e alterações de desempenho. O projeto não é oficial nem afiliado à Mojang ou à Microsoft. Verifique compatibilidade e faça backup de seus dados antes de substituir instalações.
+**Limitações:** esta fonte é uma base anterior à V1.0.4. A engrenagem da HUD touch foi removida do código, mas isso ainda precisa ser confirmado no APK. O Superconversor Rust/Python está em fase experimental; os utilitários de conversão que existem no repositório não provam que arquivos Java `.jar` funcionarão dentro do jogo ou que há interface pronta no APK.
 
-**Importante:** este repositório não concede acesso ao repositório privado e não publica seus segredos. Os downloads só ficam disponíveis quando os arquivos .apk forem realmente anexados a uma Release pública.
+O código-fonte revisado para CI, incluindo avisos de licença e créditos: https://tbx-public-source-ci.vercel.app/
+
+Atenção: como esse código-fonte é público, outras pessoas podem copiá-lo. Evite publicar credenciais, chaves privadas, tokens ou assinaturas. Compilações com chave temporária podem exigir reinstalação no aparelho.

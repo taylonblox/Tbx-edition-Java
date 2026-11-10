@@ -1,0 +1,137 @@
+name: TBX Edition - Compilar APK Android (Prévia Conversor)
+run-name: TBX Prévia Conversor · ARM64 · ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tbx-build-apk.yml'
+      - 'README.md'
+
+permissions:
+  contents: read
+concurrency:
+  group: tbx-edition-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/ci-target
+      HORIZON_TELEMETRY_URL: 'off'
+    steps:
+      - name: Baixar codigo do repositório publico
+        uses: actions/checkout@v4
+
+      - name: Importar fonte revisada do TBX (SHA256 fixo, sem chaves)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --location --retry 3 --max-time 180 \
+            https://tbx-public-source-ci.vercel.app/tbx-source.tar.gz -o tbx-source.tar.gz
+          echo '574fefb92f7785b3959d1df916e6971808d4a0245898084ae897f09a6004d604  tbx-source.tar.gz' | sha256sum --check
+          tar -xzf tbx-source.tar.gz
+          rm tbx-source.tar.gz
+          test -f Cargo.lock
+          test -f tools/android_build.py
+          test -f tools/tbx_super_converter.py
+          echo 'Fonte autentica recebida. Este APK ainda é uma previa de desenvolvimento.'
+
+      # Optional: supply a stable key as a secret to allow install-over updates.
+      # Without the secret, tools/android_build.py safely generates a local
+      # testing key. In that case each CI build needs a clean install.
+      - name: Restaurar chave de assinatura (opcional)
+        env:
+          DEV_KEYSTORE: ${{ secrets.ANDROID_DEV_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import base64, os
+          from pathlib import Path
+          key = os.environ.get('DEV_KEYSTORE', '')
+          if key:
+              output = Path('.local/android/debug.keystore')
+              output.parent.mkdir(parents=True, exist_ok=True)
+              output.write_bytes(base64.b64decode(key, validate=True))
+              output.chmod(0o600)
+              print('Using the saved signing identity')
+          else:
+              print('No saved key: build script will generate a local test identity')
+          PYCODE
+
+      - name: Preparar Java 25 para recursos do Minecraft
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Preparar Java 17 para Gradle 8.14
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Gradle 8.14
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14'
+
+      - name: Preparar Android SDK, NDK e Rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
+          fi
+          test -x "$sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+          rustup target add aarch64-linux-android
+
+      - name: Verificar integridade dos arquivos publicos
+        run: |
+          python3 tools/check_public_tree.py
+          python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
+
+      - name: Preparar recursos originais e tabelas do motor
+        run: python3 tools/android_prepare.py --java-home "$JAVA_HOME_25_X64"
+
+      - name: Compilar APK TBX Edition ARM64
+        shell: bash
+        run: |
+          python3 tools/android_build.py --abi arm64-v8a --public --profile release \
+            --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" --gradle "$(command -v gradle)" \
+            --ndk-version 28.2.13676358 --build-tools-version 35.0.0 \
+            --dev-build "${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:12}" \
+            --dev-version-code "$((1000 + GITHUB_RUN_NUMBER))"
+
+      - name: Preparar APK para download
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp .local/android/apk/arm64-v8a/horizon-android-public.apk dist/Minecraft-TBX-Edition-Conversor-Previa-arm64.apk
+          sha256sum dist/*.apk > dist/SHA256SUMS.txt
+          cp LICENSE dist/LICENSE.txt
+          cp THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
+          echo '### Minecraft TBX Edition - Previa Conversor (Android ARM64)' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Baixe o artefato abaixo e extraia o APK.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Pacote Android: `dev.tbx.edition077` (base antiga Horizon 0.7.7, NAO equivalente ao TBX 1.0.4).' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Sem uma chave de assinatura persistente, uma proxima compilacao pode exigir desinstalar a anterior.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Disponibilizar APK para baixar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Minecraft-TBX-Edition-Conversor-Previa-Android
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Apagar chave local de assinatura
+        if: always()
+        run: rm -f .local/android/debug.keystore
