@@ -39,7 +39,6 @@ jobs:
           rm tbx-source.tar.gz
           test -f Cargo.lock
           test -f tools/android_build.py
-          test -f tools/tbx_super_converter.py
           test -f crates/horizon-client/src/android/recommended_mods.rs
           test -f crates/horizon-client/src/android/launcher_pages.rs
           echo 'Fonte V1.0.5 verificada com SHA-256. APK experimental de desenvolvimento.'
