@@ -1,13 +1,17 @@
-name: TBX Edition - Compilar APK Android (Prévia Conversor)
-run-name: TBX Edition V1.0.5 · ARM64 · ${{ github.sha }}
+# ATENÇÃO: a fonte exportada é uma reconstrução V18, não o código final
+# do Vercel Sandbox que produziu a V1.0.4 aprovada. Este workflow não
+# deve ser apresentado como uma atualização real da V1.0.4.
+name: LEGADO TBX - Prévia reconstruída (não atualiza V1.0.4)
+run-name: TBX reconstrução antiga · somente teste · ${{ github.sha }}
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/tbx-build-apk.yml'
-      - 'README.md'
+    inputs:
+      confirm_legacy:
+        description: 'Entendo que esta NÃO é a V1.0.5 baseada na V1.0.4'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -17,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ inputs.confirm_legacy == true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
