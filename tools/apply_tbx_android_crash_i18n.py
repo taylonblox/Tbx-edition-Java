@@ -115,10 +115,10 @@ def patch_diagnostics(s: str) -> str:
             "helper methods")
     s = one(s, 'title.setText(R.string.diagnostics_title);',
             'title.setText(tx(R.string.diagnostics_title));', "title")
-    s = one(s, 'status.setText(intro);', 'status.setText(tx(intro));', "intro initial")
-    # There are two instances of status.setText(intro), after reversion to intro;
-    # patch the second one if still present.
-    s = one(s, 'status.setText(intro);', 'status.setText(tx(intro));', "intro refresh")
+    if s.count("status.setText(intro);") == 2:
+        s = s.replace("status.setText(intro);", "status.setText(tx(intro));")
+    elif s.count("status.setText(tx(intro));") != 2:
+        raise ValueError("diagnostics intro anchors changed")
     s = one(s, 'button.setText(text);', 'button.setText(tx(text));', "buttons")
     for key in ("diagnostics_working", "diagnostics_exported",
                 "diagnostics_no_report", "diagnostics_view_log"):
