@@ -90,6 +90,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cp tools/tbx_mod_rust_assistant.py "$RUNNER_TEMP/starling-src/tools/tbx_mod_rust_assistant.py"
+          cat > "$RUNNER_TEMP/starling-src/TBX-LEIA-ME-PORTUGUES.md" <<'DOC'
+          # TBX + Starling 0.8.0: somente codigo-fonte
+          O jogo nao foi compilado e nao existe APK dessa etapa.
+          A V1.0.4 aprovada da TBX Edition nao foi substituida.
+          
+          Leia o diagnostico de um mod Java sem executa-lo:
+          python3 tools/tbx_mod_rust_assistant.py inspect caminho/mod.jar --lang pt_br
+          
+          Prepare um projeto Rust inicial e extraia recursos para analise:
+          python3 tools/tbx_mod_rust_assistant.py prepare caminho/mod.jar --output adaptacao_mod --lang pt_br
+          
+          ATENCAO: o assistente nao converte classes Java para Rust automaticamente.
+          O projeto gerado nao e um .hnmod e nao e jogavel sem reimplementar a logica.
+          O botao Compilar no Starling so inclui mods nativos .hnmod ja compativeis.
+          Os registros tecnicos de diagnostico nao sao traduzidos nem alterados.
+          DOC
           mkdir -p dist
           tar -czf dist/TBX-Starling-0.8.0-Codigo-Fonte-Azul.tar.gz \
             -C "$RUNNER_TEMP/starling-src" .
