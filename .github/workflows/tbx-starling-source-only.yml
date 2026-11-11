@@ -6,6 +6,9 @@ on:
     paths:
       - .github/workflows/tbx-starling-source-only.yml
       - tools/apply_starling_tbx_ui.py
+      - tools/apply_tbx_localization_mod_help.py
+      - tools/tbx_mod_rust_assistant.py
+      - tools/test_tbx_mod_rust_assistant.py
   workflow_dispatch:
 
 permissions:
@@ -20,7 +23,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verificar sintaxe do patch sem instalar dependencias
-        run: python3 -m py_compile tools/apply_starling_tbx_ui.py
+        run: |
+          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/tbx_mod_rust_assistant.py
+          python3 -m unittest discover -s tools -p 'test_tbx_mod_rust_assistant.py' -v
 
       - name: Obter fonte oficial Starling 0.8.0 (commit fixo)
         shell: bash
@@ -43,6 +48,9 @@ jobs:
           set -euo pipefail
           python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src" --check
           STARLING_SRC="$RUNNER_TEMP/starling-src" python3 - <<'PY'
           import os
@@ -55,7 +63,17 @@ jobs:
           assert "    accent: 0x60a5fa," in palette
           theme=(root/"crates/horizon-client/src/android_control_theme.rs").read_text()
           assert "preset: ThemePreset::TbxBlue," in theme
-          print("TBX source-only verification passed; no APK compiled.")
+          import json
+          pt=json.loads((root/"crates/horizon-client/assets/horizon/lang/pt_br.json").read_text())
+          en=json.loads((root/"crates/horizon-client/assets/horizon/lang/en_us.json").read_text())
+          assert all(key in pt and key in en for key in (
+              "tbx.mods.guide.native", "tbx.mods.guide.jar",
+              "tbx.diagnostics.summary.previous", "tbx.diagnostics.notice.raw"))
+          diag=(root/"crates/horizon-client/src/diagnostics.rs").read_text()
+          assert 'crate::lang::get("tbx.diagnostics.summary.export")' in diag
+          mods=(root/"crates/horizon-client-render/src/options_ui.rs").read_text()
+          assert 'lang::get("tbx.mods.guide.jar")' in mods
+          print("TBX language + mod guidance source verification passed; no APK compiled.")
           PY
 
       - name: Guardar codigo fonte adaptado (nao e APK)
