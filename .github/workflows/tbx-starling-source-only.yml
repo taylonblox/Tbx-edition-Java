@@ -1,0 +1,76 @@
+name: TBX + Starling 0.8.0 - preparar codigo (SEM APK)
+run-name: TBX Starling 0.8.0 · interface azul · apenas codigo
+on:
+  push:
+    branches: [experiment/starling-v080-tbx-blue-ui]
+    paths:
+      - .github/workflows/tbx-starling-source-only.yml
+      - tools/apply_starling_tbx_ui.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Buscar somente ferramentas privadas TBX
+        uses: actions/checkout@v4
+
+      - name: Verificar sintaxe do patch sem instalar dependencias
+        run: python3 -m py_compile tools/apply_starling_tbx_ui.py
+
+      - name: Obter fonte oficial Starling 0.8.0 (commit fixo)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/starling-src"
+          curl -fLSs --retry 3 --max-time 240 \
+            https://codeload.github.com/starling-client/starling/tar.gz/ac874422ed8f892505ff73d67ae486ecfee7a516 \
+            -o "$RUNNER_TEMP/starling-v0.8.0.tar.gz"
+          tar -xzf "$RUNNER_TEMP/starling-v0.8.0.tar.gz" \
+            -C "$RUNNER_TEMP/starling-src" --strip-components=1
+          test -f "$RUNNER_TEMP/starling-src/Cargo.toml"
+          test -f "$RUNNER_TEMP/starling-src/LICENSE"
+          test -f "$RUNNER_TEMP/starling-src/THIRD_PARTY_NOTICES.md"
+          echo "Fonte oficial e avisos de licença mantidos"
+
+      - name: Auditar e aplicar mudancas TBX sem gerar APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src" --check
+          STARLING_SRC="$RUNNER_TEMP/starling-src" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path(os.environ["STARLING_SRC"])
+          controls=(root/"crates/horizon-client-render/src/android_controls.rs").read_text()
+          assert "if c == Control::Settings {\n            return false;" in controls
+          assert "Some(Control::Settings) =>" in controls  # leave menu routing intact
+          palette=(root/"crates/horizon-theme/src/lib.rs").read_text()
+          assert "    accent: 0x60a5fa," in palette
+          theme=(root/"crates/horizon-client/src/android_control_theme.rs").read_text()
+          assert "preset: ThemePreset::TbxBlue," in theme
+          print("TBX source-only verification passed; no APK compiled.")
+          PY
+
+      - name: Guardar codigo fonte adaptado (nao e APK)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -czf dist/TBX-Starling-0.8.0-Codigo-Fonte-Azul.tar.gz \
+            -C "$RUNNER_TEMP/starling-src" .
+          sha256sum dist/*.tar.gz > dist/SHA256SUMS.txt
+
+      - name: Disponibilizar somente codigo adaptado
+        uses: actions/upload-artifact@v4
+        with:
+          name: TBX-Starling-v080-Codigo-Fonte-Azul
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
