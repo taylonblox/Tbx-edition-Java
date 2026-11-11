@@ -10,6 +10,7 @@ on:
       - tools/tbx_mod_rust_assistant.py
       - tools/test_tbx_mod_rust_assistant.py
       - tools/apply_tbx_android_crash_i18n.py
+      - tools/apply_tbx_smooth_shader_menus.py
   workflow_dispatch:
 
 permissions:
@@ -25,7 +26,7 @@ jobs:
 
       - name: Verificar sintaxe do patch sem instalar dependencias
         run: |
-          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/tbx_mod_rust_assistant.py
+          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/apply_tbx_smooth_shader_menus.py tools/tbx_mod_rust_assistant.py
           python3 -m unittest discover -s tools -p 'test_tbx_mod_rust_assistant.py' -v
 
       - name: Obter fonte oficial Starling 0.8.0 (commit fixo)
@@ -51,6 +52,9 @@ jobs:
           python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src"
           python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src"
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src"
@@ -83,7 +87,12 @@ jobs:
           assert 'status.setText(tx(intro))' in java and 'button.setText(tx(text))' in java
           assert 'line.startsWith("lang:")' in lang_reader
           assert 'Falha no diagnóstico' in android_pt
-          print("TBX diagnostics Android source verification passed; no APK compiled.")
+          fast=(root/"crates/horizon-client/src/game.rs").read_text()
+          touch=(root/"crates/horizon-client/src/game/mobile_controls.rs").read_text()
+          assert 'renderer.render(&loading_frame(&hud))' in fast
+          assert 'self.settings.horizon.shader_choice().is_some()' in fast
+          assert 'self.mobile.ui.cancel();' in touch
+          print("TBX menu shader bypass + touch guard source assertions passed; no APK compiled.")
           PY
 
       - name: Guardar codigo fonte adaptado (nao e APK)
