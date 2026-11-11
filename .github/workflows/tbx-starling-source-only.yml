@@ -11,6 +11,8 @@ on:
       - tools/test_tbx_mod_rust_assistant.py
       - tools/apply_tbx_android_crash_i18n.py
       - tools/apply_tbx_smooth_shader_menus.py
+      - tools/apply_tbx_permanent_world_wizard.py
+      - tools/tbx_permanent_world.rs
   workflow_dispatch:
 
 permissions:
@@ -26,7 +28,7 @@ jobs:
 
       - name: Verificar sintaxe do patch sem instalar dependencias
         run: |
-          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/apply_tbx_smooth_shader_menus.py tools/tbx_mod_rust_assistant.py
+          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/apply_tbx_smooth_shader_menus.py tools/apply_tbx_permanent_world_wizard.py tools/tbx_mod_rust_assistant.py
           python3 -m unittest discover -s tools -p 'test_tbx_mod_rust_assistant.py' -v
 
       - name: Obter fonte oficial Starling 0.8.0 (commit fixo)
@@ -55,6 +57,10 @@ jobs:
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src"
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_permanent_world_wizard.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_permanent_world.rs --check
+          python3 tools/apply_tbx_permanent_world_wizard.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_permanent_world.rs
+          python3 tools/apply_tbx_permanent_world_wizard.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_permanent_world.rs --check
+          rustfmt --edition 2024 --emit stdout "$RUNNER_TEMP/starling-src/crates/horizon-client/src/title/tbx_permanent_world.rs" > /dev/null
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src"
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src"
@@ -92,7 +98,14 @@ jobs:
           assert 'renderer.render(&loading_frame(&hud))' in fast
           assert 'self.settings.horizon.shader_choice().is_some()' in fast
           assert 'self.mobile.ui.cancel();' in touch
-          print("TBX menu shader bypass + touch guard source assertions passed; no APK compiled.")
+          title=(root/"crates/horizon-client/src/title.rs").read_text()
+          wizard=(root/"crates/horizon-client/src/title/tbx_permanent_world.rs").read_text()
+          assert "buttons.push(b((w - 29.0).max(0.0), 6.0, 20.0, \"+\", true, 239))" in title
+          assert "self.tbx_address = Some(tbx_permanent_world::PermanentDraft" in title
+          assert "create_world::buttons(w, h, *creative, options)" in title
+          assert '"is_online": false' in wizard and '"address_reserved": false' in wizard
+          assert "tbx.world.address.saved" in en and "tbx.world.address.saved" in pt
+          print("TBX multiplayer plus + create-world reuse + address draft checks passed; no APK compiled.")
           PY
 
       - name: Guardar codigo fonte adaptado (nao e APK)
