@@ -86,6 +86,24 @@ class TestModAssistant(unittest.TestCase):
         self.assertFalse(module.report(info, False)["playable"])
         self.assertFalse(module.report(info, False)["needs_manual_rust_port"])
 
+    def test_preflight_shows_required_dependencies_without_running_a_jar(self):
+        import tbx_mod_install_preflight as installer
+        jar = self.archive("dependencies.jar", {
+            "fabric.mod.json": json.dumps({
+                "id": "test_mod",
+                "name": "Test Mod",
+                "version": "1.0",
+                "depends": {"fabricloader": ">=0.16", "fabric-api": "*"}
+            }),
+            "example/Mod.class": b"\\xca\\xfe\\xba\\xbe",
+        })
+        scan = installer.preflight(jar, True)
+        self.assertEqual(scan["loader"], "Fabric")
+        self.assertFalse(scan["automatically_compatible_with_tbx"])
+        self.assertFalse(scan["native_starling_compile_supported"])
+        self.assertEqual({d["mod"] for d in scan["declared_dependencies"]},
+                         {"fabricloader", "fabric-api"})
+
 
 if __name__ == "__main__":
     unittest.main()
