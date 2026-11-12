@@ -11,6 +11,11 @@ on:
       - tools/test_tbx_mod_rust_assistant.py
       - tools/apply_tbx_android_crash_i18n.py
       - tools/apply_tbx_smooth_shader_menus.py
+      - tools/apply_tbx_optimizations_vnext.py
+      - tools/apply_tbx_resilience_vnext.py
+      - tools/tbx_backup.rs
+      - tools/apply_tbx_dragon_visibility.py
+      - tools/tbx_mod_install_preflight.py
   workflow_dispatch:
 
 permissions:
@@ -26,7 +31,7 @@ jobs:
 
       - name: Verificar sintaxe do patch sem instalar dependencias
         run: |
-          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/apply_tbx_smooth_shader_menus.py tools/tbx_mod_rust_assistant.py
+          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/apply_tbx_localization_mod_help.py tools/apply_tbx_android_crash_i18n.py tools/apply_tbx_smooth_shader_menus.py tools/apply_tbx_optimizations_vnext.py tools/apply_tbx_resilience_vnext.py tools/apply_tbx_dragon_visibility.py tools/tbx_mod_install_preflight.py tools/tbx_mod_rust_assistant.py
           python3 -m unittest discover -s tools -p 'test_tbx_mod_rust_assistant.py' -v
 
       - name: Obter fonte oficial Starling 0.8.0 (commit fixo)
@@ -53,6 +58,18 @@ jobs:
           python3 tools/apply_tbx_localization_mod_help.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_optimizations_vnext.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_optimizations_vnext.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_tbx_optimizations_vnext.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_resilience_vnext.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_backup.rs --check
+          python3 tools/apply_tbx_resilience_vnext.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_backup.rs
+          python3 tools/apply_tbx_resilience_vnext.py "$RUNNER_TEMP/starling-src" --rust-module tools/tbx_backup.rs --check
+          python3 tools/apply_tbx_dragon_visibility.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_tbx_dragon_visibility.py "$RUNNER_TEMP/starling-src"
+          python3 tools/apply_tbx_dragon_visibility.py "$RUNNER_TEMP/starling-src" --check
+          for relative in             crates/horizon-client/src/game.rs             crates/horizon-client/src/game/shader_packs.rs             crates/horizon-client/src/title.rs             crates/horizon-client/src/title/tbx_backup.rs             crates/horizon-client/src/android_control_ui.rs             crates/horizon-client/src/game/dragon.rs; do
+            rustfmt --edition 2024 --emit stdout "$RUNNER_TEMP/starling-src/$relative" > /dev/null
+          done
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src"
           python3 tools/apply_tbx_smooth_shader_menus.py "$RUNNER_TEMP/starling-src" --check
           python3 tools/apply_tbx_android_crash_i18n.py "$RUNNER_TEMP/starling-src"
@@ -92,7 +109,18 @@ jobs:
           assert 'renderer.render(&loading_frame(&hud))' in fast
           assert 'self.settings.horizon.shader_choice().is_some()' in fast
           assert 'self.mobile.ui.cancel();' in touch
-          print("TBX shader menu, blue UI, translation and mod assistant checks passed; no APK compiled.")
+          shader=(root/"crates/horizon-client/src/game/shader_packs.rs").read_text()
+          android_ui=(root/"crates/horizon-client/src/android_control_ui.rs").read_text()
+          dragon=(root/"crates/horizon-client/src/game/dragon.rs").read_text()
+          title=(root/"crates/horizon-client/src/title.rs").read_text()
+          assert "self.settings.horizon.resolution_scale as f32 / 100.0" in shader
+          assert 'self.tbx_record_shader_recovery(&name, "graphics device lost")' in shader
+          assert 'if !cfg!(target_os = "android")' in fast
+          assert "tbx_gesture_started" in android_ui
+          assert "if let Some(eyes) = eyes" in dragon
+          assert "tbx_backup::due(&dir)" in title
+          assert "tbx_backup::mark_success" in title
+          print("TBX FPS/shader/touch/backup/dragon source checks passed; no APK compiled.")
           PY
 
       - name: Guardar codigo fonte adaptado (nao e APK)
@@ -100,6 +128,7 @@ jobs:
         run: |
           set -euo pipefail
           cp tools/tbx_mod_rust_assistant.py "$RUNNER_TEMP/starling-src/tools/tbx_mod_rust_assistant.py"
+          cp tools/tbx_mod_install_preflight.py "$RUNNER_TEMP/starling-src/tools/tbx_mod_install_preflight.py"
           cat > "$RUNNER_TEMP/starling-src/TBX-LEIA-ME-PORTUGUES.md" <<'DOC'
           # TBX + Starling 0.8.0: somente codigo-fonte
           O jogo nao foi compilado e nao existe APK dessa etapa.
