@@ -1,0 +1,109 @@
+name: TBX Hybrid Preview - Android ARM64
+on:
+  push:
+    branches:
+      - feature/tbx-hybrid-java-preview
+    paths:
+      - ".github/workflows/tbx-hybrid-android.yml"
+      - "tools/**"
+      - "android-bridge/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tbx-hybrid-preview-arm64
+  cancel-in-progress: false
+jobs:
+  java-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Classify ZIP, JAR, texture and shader archives
+        run: |
+          mkdir -p .local/test-classes
+          javac --release 8 -d .local/test-classes \
+            android-bridge/src/main/java/dev/tbx/hybrid/TbxArchiveInspector.java \
+            android-bridge/src/test/java/dev/tbx/hybrid/TbxArchiveInspectorTest.java
+          java -cp .local/test-classes dev.tbx.hybrid.TbxArchiveInspectorTest
+  apk-arm64:
+    needs: java-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      HORIZON_TELEMETRY_URL: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Download pinned MIT Starling source (no Minecraft assets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/starling-src"
+          curl -fLSs --retry 3 --max-time 240 \
+            https://codeload.github.com/starling-client/starling/tar.gz/ac874422ed8f892505ff73d67ae486ecfee7a516 \
+            -o "$RUNNER_TEMP/starling.tar.gz"
+          tar -xzf "$RUNNER_TEMP/starling.tar.gz" -C "$RUNNER_TEMP/starling-src" --strip-components=1
+          test -f "$RUNNER_TEMP/starling-src/LICENSE"
+          test -f "$RUNNER_TEMP/starling-src/THIRD_PARTY_NOTICES.md"
+      - name: Apply TBX UI and separate Android preview identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/apply_starling_tbx_ui.py tools/tbx_package_identity.py
+          python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/tbx_package_identity.py "$RUNNER_TEMP/starling-src" --check
+          python3 tools/apply_starling_tbx_ui.py "$RUNNER_TEMP/starling-src"
+          python3 tools/tbx_package_identity.py "$RUNNER_TEMP/starling-src"
+          mkdir -p "$RUNNER_TEMP/starling-src/packaging/android/java/dev/tbx/hybrid"
+          cp android-bridge/src/main/java/dev/tbx/hybrid/TbxArchiveInspector.java \
+             "$RUNNER_TEMP/starling-src/packaging/android/java/dev/tbx/hybrid/"
+      - name: Install Android SDK and NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "build-tools;35.0.0" "platforms;android-36" "ndk;28.2.13676358" > /dev/null
+      - name: Install Rust Android target and cargo-ndk
+        run: |
+          rustup toolchain install stable --profile minimal --target aarch64-linux-android
+          rustup default stable
+          cargo install cargo-ndk --version 3.5.4 --locked
+      - name: Build experimental APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/starling-src"
+          python3 packaging/android/build_apk.py --abi arm64-v8a --profile quick --preview
+      - name: Verify APK and copy MIT notices
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          apk="$(find "$RUNNER_TEMP/starling-src/target/android" -maxdepth 1 -name 'starling-*.apk' -type f | head -n 1)"
+          test -n "$apk"
+          unzip -t "$apk" > /dev/null
+          cp "$apk" dist/TBX-Hybrid-Preview-arm64.apk
+          cp "$RUNNER_TEMP/starling-src/LICENSE" dist/LICENSE.txt
+          cp "$RUNNER_TEMP/starling-src/THIRD_PARTY_NOTICES.md" dist/THIRD_PARTY_NOTICES.md
+          sha256sum dist/TBX-Hybrid-Preview-arm64.apk > dist/SHA256SUMS.txt
+          echo "### TBX Hybrid Preview (separate test app)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Java mods remain unsupported; inspecting a JAR does not execute it." >> "$GITHUB_STEP_SUMMARY"
+          echo "This build does not update the approved TBX V1.0.4." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TBX-Hybrid-Preview-arm64
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
